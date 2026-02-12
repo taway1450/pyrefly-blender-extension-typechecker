@@ -34,6 +34,7 @@ use starlark_map::small_map::Entry;
 use starlark_map::small_map::SmallMap;
 use starlark_map::small_set::SmallSet;
 
+use crate::export::blender::BlenderPropertyRegistration;
 use crate::export::deprecation::parse_deprecation;
 use crate::export::special::SpecialExport;
 use crate::types::globals::ImplicitGlobal;
@@ -154,6 +155,9 @@ pub struct Definitions {
     pub deprecated: SmallMap<Name, Deprecation>,
     /// Special exports defined in this module
     pub special_exports: SmallMap<Name, SpecialExport>,
+    /// Blender property registrations found in the register() function.
+    /// Only populated for blender init modules.
+    pub blender_registrations: Vec<BlenderPropertyRegistration>,
 }
 
 /// Whether `__all__` was explicitly defined by the user or synthesized from module definitions.

@@ -13,6 +13,7 @@ mod assign;
 mod attribute_narrow;
 mod attributes;
 mod attrs;
+mod blender;
 mod callable;
 mod calls;
 mod class_keywords;

@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+pub mod blender;
 pub mod definitions;
 pub mod deprecation;
 pub mod exports;

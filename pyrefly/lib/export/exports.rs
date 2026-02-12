@@ -24,6 +24,8 @@ use ruff_text_size::TextSize;
 use starlark_map::small_map::SmallMap;
 use starlark_map::small_set::SmallSet;
 
+use crate::export::blender;
+use crate::export::definitions::Definition;
 use crate::export::definitions::DefinitionStyle;
 use crate::export::definitions::Definitions;
 use crate::export::definitions::DunderAllEntry;
@@ -117,7 +119,12 @@ impl Display for Exports {
 }
 
 impl Exports {
-    pub fn new(x: &[Stmt], module_info: &ModuleInfo, sys_info: &SysInfo) -> Self {
+    pub fn new(
+        x: &[Stmt],
+        module_info: &ModuleInfo,
+        sys_info: &SysInfo,
+        is_blender_init: bool,
+    ) -> Self {
         let mut definitions = Definitions::new(
             x,
             module_info.name(),
@@ -137,6 +144,32 @@ impl Exports {
                 Name::new_static("__build_class__"),
                 Name::new_static("__import__"),
             ]);
+        }
+
+        // For blender init modules, scan register() for property registrations
+        // and inject synthetic definitions for each one.
+        if is_blender_init {
+            let registrations =
+                blender::scan_register_for_blender_properties(x, &definitions, module_info.name());
+            for reg in &registrations {
+                let export_name = blender::blender_prop_export_name(
+                    reg.target_module,
+                    &reg.target_class,
+                    &reg.prop_name,
+                );
+                definitions.definitions.insert(
+                    export_name,
+                    Definition {
+                        range: reg.range,
+                        style: DefinitionStyle::Unannotated(
+                            pyrefly_python::symbol_kind::SymbolKind::Variable,
+                        ),
+                        needs_anywhere: false,
+                        docstring_range: None,
+                    },
+                );
+            }
+            definitions.blender_registrations = registrations;
         }
 
         Self(Arc::new(ExportsInner {
@@ -245,6 +278,11 @@ impl Exports {
     /// Get the docstring for this module.
     pub fn docstring_range(&self) -> Option<TextRange> {
         self.0.docstring_range
+    }
+
+    /// Get blender property registrations found in register().
+    pub fn blender_registrations(&self) -> &[blender::BlenderPropertyRegistration] {
+        &self.0.definitions.blender_registrations
     }
 
     /// If `position` is inside a user-specified `__all__` string entry, return its range and name.
@@ -467,7 +505,7 @@ mod tests {
             path,
             Arc::new(contents.to_owned()),
         );
-        Exports::new(&ast.body, &module_info, &SysInfo::default())
+        Exports::new(&ast.body, &module_info, &SysInfo::default(), false)
     }
 
     fn eq_wildcards(exports: &Exports, lookup: &dyn LookupExport, all: &[&str]) {

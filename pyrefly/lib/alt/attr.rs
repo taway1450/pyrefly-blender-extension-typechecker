@@ -1281,7 +1281,17 @@ impl<'a, Ans: LookupAnswer> AnswersSolver<'a, Ans> {
                         acc.found_type(self.heap.mk_any_implicit(), base)
                     }
                     None => {
-                        acc.not_found(NotFoundOn::ClassInstance(class.class_object().dupe(), base))
+                        // Check for dynamically registered blender properties
+                        if let Some(ty) =
+                            self.lookup_blender_property(class.class_object(), attr_name)
+                        {
+                            acc.found_type(ty, base)
+                        } else {
+                            acc.not_found(NotFoundOn::ClassInstance(
+                                class.class_object().dupe(),
+                                base,
+                            ))
+                        }
                     }
                 }
             }

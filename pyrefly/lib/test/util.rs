@@ -114,6 +114,7 @@ pub struct TestEnv {
     missing_override_decorator_error: bool,
     not_required_key_access_error: bool,
     default_require_level: Require,
+    blender_init_module: Option<ModuleName>,
 }
 
 impl TestEnv {
@@ -136,6 +137,7 @@ impl TestEnv {
             missing_override_decorator_error: false,
             not_required_key_access_error: false,
             default_require_level: Require::Exports,
+            blender_init_module: None,
         }
     }
 
@@ -215,6 +217,11 @@ impl TestEnv {
 
     pub fn with_version(mut self, version: PythonVersion) -> Self {
         self.version = version;
+        self
+    }
+
+    pub fn with_blender_init_module(mut self, module: &str) -> Self {
+        self.blender_init_module = Some(ModuleName::from_str(module));
         self
     }
 
@@ -316,6 +323,7 @@ impl TestEnv {
         }
         config.source_db = Some(ArcId::new(Box::new(sourcedb)));
         config.interpreters.skip_interpreter_query = true;
+        config.blender_init_module = self.blender_init_module;
         config.configure();
         ArcId::new(config)
     }

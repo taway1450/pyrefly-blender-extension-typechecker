@@ -46,6 +46,7 @@ pub struct Context<'a, Lookup> {
     pub infer_with_first_use: bool,
     pub tensor_shapes: bool,
     pub recursion_limit_config: Option<RecursionLimitConfig>,
+    pub blender_init_module: Option<ModuleName>,
 }
 
 #[derive(Debug, Default, Dupe, Clone)]
@@ -160,7 +161,8 @@ impl Step {
         load: Arc<Load>,
         ast: Arc<ModModule>,
     ) -> Exports {
-        Exports::new(&ast.body, &load.module_info, ctx.sys_info)
+        let is_blender_init = ctx.blender_init_module.is_some_and(|m| m == ctx.module);
+        Exports::new(&ast.body, &load.module_info, ctx.sys_info, is_blender_init)
     }
 
     #[inline(never)]
@@ -184,6 +186,7 @@ impl Step {
             ctx.uniques,
             enable_trace,
             ctx.untyped_def_behavior,
+            ctx.blender_init_module,
         );
         let answers = Answers::new(&bindings, solver, enable_index, enable_trace);
         Arc::new((bindings, Arc::new(answers)))

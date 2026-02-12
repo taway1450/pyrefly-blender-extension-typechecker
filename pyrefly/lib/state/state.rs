@@ -1111,6 +1111,7 @@ impl<'a> Transaction<'a> {
                     .infer_with_first_use(module_data.handle.path().as_path()),
                 tensor_shapes: config.tensor_shapes(module_data.handle.path().as_path()),
                 recursion_limit_config: config.recursion_limit_config(),
+                blender_init_module: config.blender_init_module,
             };
             let set = todo.compute(&exclusive.steps, &ctx);
             {
@@ -2057,6 +2058,7 @@ impl<'a> Transaction<'a> {
                 infer_with_first_use: config.infer_with_first_use(m.handle.path().as_path()),
                 tensor_shapes: config.tensor_shapes(m.handle.path().as_path()),
                 recursion_limit_config: config.recursion_limit_config(),
+                blender_init_module: config.blender_init_module,
             };
             let mut step = Step::Load; // Start at AST (Load.next)
             alt.load = lock.steps.load.dupe();

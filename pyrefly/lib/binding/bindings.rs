@@ -175,6 +175,8 @@ struct BindingsInner {
     unused_parameters: Vec<UnusedParameter>,
     unused_imports: Vec<UnusedImport>,
     unused_variables: Vec<UnusedVariable>,
+    /// The blender init module name, if this project is a blender extension.
+    blender_init_module: Option<ModuleName>,
 }
 
 impl Display for Bindings {
@@ -282,6 +284,7 @@ impl Bindings {
             unused_parameters: Vec::new(),
             unused_imports: Vec::new(),
             unused_variables: Vec::new(),
+            blender_init_module: None,
         }))
     }
 
@@ -294,6 +297,11 @@ impl Bindings {
 
     pub fn module(&self) -> &ModuleInfo {
         &self.0.module_info
+    }
+
+    /// Get the blender init module name, if this is a blender extension project.
+    pub fn blender_init_module(&self) -> Option<ModuleName> {
+        self.0.blender_init_module
     }
 
     pub fn unused_parameters(&self) -> &[UnusedParameter] {
@@ -448,6 +456,7 @@ impl Bindings {
         uniques: &UniqueFactory,
         enable_trace: bool,
         untyped_def_behavior: UntypedDefBehavior,
+        blender_init_module: Option<ModuleName>,
     ) -> Self {
         let mut builder = BindingsBuilder {
             module_info: module_info.dupe(),
@@ -528,6 +537,25 @@ impl Bindings {
                     .insert(KeyExport(name.into_key()), BindingExport(binding));
             }
         }
+
+        // For blender init modules, create bindings for property registrations.
+        // Each registration gets a Binding::Expr for the RHS call expression
+        // (e.g. bpy.props.StringProperty(...)) evaluated in module scope.
+        let is_blender_init = blender_init_module.is_some_and(|m| m == module_info.name());
+        if is_blender_init {
+            for reg in exports.blender_registrations() {
+                let export_name = crate::export::blender::blender_prop_export_name(
+                    reg.target_module,
+                    &reg.target_class,
+                    &reg.prop_name,
+                );
+                let binding = Binding::Expr(None, reg.rhs_expr.clone());
+                builder
+                    .table
+                    .insert(KeyExport(export_name), BindingExport(binding));
+            }
+        }
+
         Self(Arc::new(BindingsInner {
             module_info,
             table: builder.table,
@@ -539,6 +567,7 @@ impl Bindings {
             unused_parameters: builder.unused_parameters,
             unused_imports: builder.unused_imports,
             unused_variables: builder.unused_variables,
+            blender_init_module,
         }))
     }
 

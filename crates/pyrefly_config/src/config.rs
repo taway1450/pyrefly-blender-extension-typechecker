@@ -520,6 +520,17 @@ pub struct ConfigFile {
     /// may speed up LSP operations on large projects.
     #[serde(default, skip_serializing_if = "crate::util::skip_default_false")]
     pub skip_lsp_config_indexing: bool,
+
+    /// Whether this project is a Blender extension (detected via `blender_manifest.toml`).
+    #[serde(skip)]
+    pub is_blender_extension: bool,
+
+    /// The module name of the Blender extension's `__init__.py` that contains
+    /// the `register()` function with dynamic property assignments.
+    /// Auto-detected from `blender_manifest.toml` directory name, or can be
+    /// set explicitly in `pyrefly.toml`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blender_init_module: Option<ModuleName>,
 }
 
 impl Default for ConfigFile {
@@ -550,6 +561,8 @@ impl Default for ConfigFile {
             typeshed_path: None,
             baseline: None,
             skip_lsp_config_indexing: false,
+            is_blender_extension: false,
+            blender_init_module: None,
         }
     }
 }
@@ -617,7 +630,8 @@ impl ConfigFile {
     pub const CONFIG_FILE_NAMES: &[&str] = &[Self::PYREFLY_FILE_NAME, Self::PYPROJECT_FILE_NAME];
     /// Files that don't contain pyrefly-specific config information but indicate that we're at the
     /// root of a Python project, which should be added to the search path.
-    pub const ADDITIONAL_ROOT_FILE_NAMES: &[&str] = &["mypy.ini", "pyrightconfig.json"];
+    pub const ADDITIONAL_ROOT_FILE_NAMES: &[&str] =
+        &["mypy.ini", "pyrightconfig.json", "blender_manifest.toml"];
 
     /// Writes the configuration to a file in the specified directory.
     pub fn write_to_toml_in_directory(&self, directory: &Path) -> Result<()> {
@@ -1279,6 +1293,31 @@ impl ConfigFile {
             };
             config.source = config_source;
 
+            // Detect Blender extension projects.
+            // Check for blender_manifest.toml either as the config file itself or
+            // alongside another config file (e.g., pyrefly.toml) in the same directory.
+            // If `blender_init_module` was already set explicitly in the config file,
+            // skip auto-detection but still mark as a blender extension.
+            if let Some(config_root) = config_path.parent() {
+                let is_blender = config.blender_init_module.is_some()
+                    || config_path
+                        .file_name()
+                        .and_then(|f| f.to_str())
+                        .is_some_and(|f| f == "blender_manifest.toml")
+                    || config_root
+                        .join("blender_manifest.toml")
+                        .try_exists()
+                        .unwrap_or(false);
+                if is_blender {
+                    config.is_blender_extension = true;
+                    if config.blender_init_module.is_none()
+                        && let Some(dir_name) = config_root.file_name().and_then(|n| n.to_str())
+                    {
+                        config.blender_init_module = Some(ModuleName::from_str(dir_name));
+                    }
+                }
+            }
+
             if !config.root.extras.0.is_empty() {
                 let extra_keys = config.root.extras.0.keys().join(", ");
                 errors.push(ConfigError::warn(anyhow!(
@@ -1488,6 +1527,8 @@ mod tests {
                 typeshed_path: None,
                 baseline: None,
                 skip_lsp_config_indexing: false,
+                is_blender_extension: false,
+                blender_init_module: None,
             }
         );
     }
@@ -1721,6 +1762,8 @@ mod tests {
             typeshed_path: Some(PathBuf::from(typeshed)),
             baseline: Some(PathBuf::from("baseline.json")),
             skip_lsp_config_indexing: false,
+            is_blender_extension: false,
+            blender_init_module: None,
         };
 
         let current_dir = std::env::current_dir().unwrap();
@@ -1780,6 +1823,8 @@ mod tests {
             typeshed_path: Some(expected_typeshed),
             baseline: Some(test_path.join("baseline.json")),
             skip_lsp_config_indexing: false,
+            is_blender_extension: false,
+            blender_init_module: None,
         };
         assert_eq!(config, expected_config);
     }
