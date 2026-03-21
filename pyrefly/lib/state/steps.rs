@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU8;
 use std::sync::atomic::Ordering;
@@ -32,6 +33,7 @@ use crate::export::exports::Exports;
 use crate::export::exports::LookupExport;
 use crate::module::parse::module_parse;
 use crate::solver::solver::Solver;
+use crate::state::injectable_stubs::merge_injectable_stub_if_present;
 use crate::state::load::Load;
 use crate::state::memory::MemoryFilesLookup;
 use crate::state::require::Require;
@@ -59,6 +61,7 @@ pub struct Context<'a, Lookup> {
     pub tensor_shapes: bool,
     pub strict_callable_subtyping: bool,
     pub recursion_limit_config: Option<RecursionLimitConfig>,
+    pub injectable_stubs_root: Option<&'a Path>,
     /// Pysa context for building PysaSolutions during the Solutions step.
     pub pysa_context: Option<PysaContext<'a>>,
 }
@@ -402,12 +405,22 @@ impl Step {
 
     #[inline(never)]
     fn step_ast<Lookup>(ctx: &Context<Lookup>, load: Arc<Load>) -> Arc<ModModule> {
-        Arc::new(module_parse(
+        let mut ast = module_parse(
             load.module_info.contents(),
             ctx.sys_info.version(),
             load.module_info.source_type(),
             &load.errors,
-        ))
+        );
+        merge_injectable_stub_if_present(
+            &mut ast,
+            ctx.injectable_stubs_root,
+            ctx.module,
+            load.module_info.path().is_init(),
+            ctx.sys_info.version(),
+            &load.errors,
+        );
+
+        Arc::new(ast)
     }
 
     #[inline(never)]

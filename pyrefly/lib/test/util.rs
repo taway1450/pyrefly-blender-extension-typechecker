@@ -45,6 +45,7 @@ use crate::binding::binding::KeyExport;
 use crate::config::base::InferReturnTypes;
 use crate::config::base::UntypedDefBehavior;
 use crate::config::config::ConfigFile;
+use crate::config::config::ConfigSource;
 use crate::config::finder::ConfigFinder;
 use crate::error::error::print_errors;
 use crate::module::finder::find_import;
@@ -118,6 +119,7 @@ pub struct TestEnv {
     not_required_key_access_error: bool,
     strict_callable_subtyping: bool,
     default_require_level: Require,
+    config_source_root: Option<PathBuf>,
 }
 
 impl TestEnv {
@@ -143,6 +145,7 @@ impl TestEnv {
             not_required_key_access_error: false,
             strict_callable_subtyping: false,
             default_require_level: Require::Exports,
+            config_source_root: None,
         }
     }
 
@@ -276,6 +279,11 @@ impl TestEnv {
         self
     }
 
+    pub fn with_config_source_root(mut self, root: PathBuf) -> Self {
+        self.config_source_root = Some(root);
+        self
+    }
+
     pub fn with_version(mut self, version: PythonVersion) -> Self {
         self.version = version;
         self
@@ -337,6 +345,9 @@ impl TestEnv {
 
     pub fn config(&self) -> ArcId<ConfigFile> {
         let mut config = ConfigFile::default();
+        if let Some(root) = &self.config_source_root {
+            config.source = ConfigSource::Marker(root.join("pyproject.toml"));
+        }
         config.python_environment.python_version = Some(self.version);
         config.python_environment.python_platform = Some(self.platform.clone());
         config.python_environment.site_package_path = Some(self.site_package_path.clone());

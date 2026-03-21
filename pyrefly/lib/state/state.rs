@@ -1148,6 +1148,7 @@ impl<'a> Transaction<'a> {
                 strict_callable_subtyping: config
                     .strict_callable_subtyping(module_data.handle.path().as_path()),
                 recursion_limit_config: config.recursion_limit_config(),
+                injectable_stubs_root: config.source.root(),
                 pysa_context,
             };
 
@@ -2053,6 +2054,7 @@ impl<'a> Transaction<'a> {
                 strict_callable_subtyping: config
                     .strict_callable_subtyping(m.handle.path().as_path()),
                 recursion_limit_config: config.recursion_limit_config(),
+                injectable_stubs_root: config.source.root(),
                 pysa_context: None,
             };
             while let Some(step) = alt.next_step() {

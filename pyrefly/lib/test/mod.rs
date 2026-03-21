@@ -40,6 +40,7 @@ mod generic_sub;
 mod imports;
 mod incremental;
 mod inference;
+mod injectable_stubs;
 mod literal;
 mod lsp;
 mod marshmallow;
