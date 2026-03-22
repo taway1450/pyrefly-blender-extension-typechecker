@@ -10,6 +10,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use pyrefly_python::module_name::ModuleName;
+use pyrefly_python::module_path::ModulePath;
+use pyrefly_python::module_path::ModulePathDetails;
 use pyrefly_python::sys_info::PythonVersion;
 use ruff_python_ast::ModModule;
 use ruff_python_ast::PySourceType;
@@ -114,8 +116,19 @@ fn merge_injectable_stub_into_ast(base: &mut ModModule, injectable: ModModule) {
     }
 }
 
+fn module_is_loaded_from_injectable_stub(
+    loaded_module_path: &ModulePath,
+    injectable_stub_path: &Path,
+) -> bool {
+    match loaded_module_path.details() {
+        ModulePathDetails::FileSystem(path) => path.as_path() == injectable_stub_path,
+        _ => false,
+    }
+}
+
 pub fn merge_injectable_stub_if_present(
     ast: &mut ModModule,
+    loaded_module_path: &ModulePath,
     root: Option<&Path>,
     module: ModuleName,
     is_init: bool,
@@ -124,6 +137,7 @@ pub fn merge_injectable_stub_if_present(
 ) {
     if let Some(root) = root
         && let Some(path) = injectable_stub_path(root, module, is_init)
+        && !module_is_loaded_from_injectable_stub(loaded_module_path, &path)
         && let Ok(contents) = fs::read_to_string(path)
     {
         let injectable = module_parse(&contents, version, PySourceType::Stub, errors);

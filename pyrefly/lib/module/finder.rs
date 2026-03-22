@@ -592,6 +592,41 @@ fn find_module_prefixes<'a>(
     results.iter().map(|(_, name)| *name).collect::<Vec<_>>()
 }
 
+fn find_injectable_stub_module(
+    config: &ConfigFile,
+    module: ModuleName,
+    style_filter: Option<ModuleStyle>,
+) -> Option<FindingOrError<ModulePath>> {
+    if style_filter == Some(ModuleStyle::Executable) {
+        return None;
+    }
+
+    let root = config.source.root()?;
+    let components = module.components();
+    if components.is_empty() {
+        return None;
+    }
+
+    let mut path = root.join(".injectable_stubs");
+    for component in components {
+        path.push(component.as_str());
+    }
+
+    let init_path = path.join("__init__.pyi");
+    if init_path.exists() {
+        return Some(FindingOrError::new_finding(ModulePath::filesystem(init_path)));
+    }
+
+    let single_file_path = path.with_extension("pyi");
+    if single_file_path.exists() {
+        return Some(FindingOrError::new_finding(ModulePath::filesystem(
+            single_file_path,
+        )));
+    }
+
+    None
+}
+
 /// This function will find either third party typeshed stubs or other third party stubs
 /// Here a decision is being made to prioritize typeshed stubs over other third party stubs that are bundled.
 /// Since we run the typeshed update script with a more regular cadence, it is more likely that
@@ -729,6 +764,8 @@ pub fn find_import_internal(
         from_real_config_file,
         phantom_paths,
     ) {
+        path
+    } else if let Some(path) = find_injectable_stub_module(config, module, style_filter) {
         path
     } else if let Some(namespace) = namespaces_found.into_iter().next() &&
         // only use namespaces if style filter is none, since otherwise we might be

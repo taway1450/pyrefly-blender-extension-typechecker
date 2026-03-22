@@ -413,6 +413,7 @@ impl Step {
         );
         merge_injectable_stub_if_present(
             &mut ast,
+            load.module_info.path(),
             ctx.injectable_stubs_root,
             ctx.module,
             load.module_info.path().is_init(),
