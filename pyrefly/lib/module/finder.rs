@@ -614,7 +614,9 @@ fn find_injectable_stub_module(
 
     let init_path = path.join("__init__.pyi");
     if init_path.exists() {
-        return Some(FindingOrError::new_finding(ModulePath::filesystem(init_path)));
+        return Some(FindingOrError::new_finding(ModulePath::filesystem(
+            init_path,
+        )));
     }
 
     let single_file_path = path.with_extension("pyi");

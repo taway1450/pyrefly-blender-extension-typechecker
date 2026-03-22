@@ -782,6 +782,23 @@ impl<'a> BindingsBuilder<'a> {
         self.table.get_mut::<K>().0.insert(key)
     }
 
+    pub fn key_to_idx<K>(&self, key: &K) -> Option<Idx<K>>
+    where
+        K: Keyed,
+        BindingTable: TableKeyed<K, Value = BindingEntry<K>>,
+    {
+        self.table.get::<K>().0.key_to_idx(key)
+    }
+
+    pub(crate) fn key_has_binding_or_deferred(&self, key: &Key) -> Option<Idx<Key>> {
+        let idx = self.key_to_idx(key)?;
+        if self.idx_to_binding(idx).is_some() || self.has_deferred_bound_name_idx(idx) {
+            Some(idx)
+        } else {
+            None
+        }
+    }
+
     pub fn idx_to_key<K>(&self, idx: Idx<K>) -> &K
     where
         K: Keyed,
@@ -1248,6 +1265,12 @@ impl<'a> BindingsBuilder<'a> {
             usage: usage.clone(),
         });
         bound_name_idx
+    }
+
+    pub fn has_deferred_bound_name_idx(&self, idx: Idx<Key>) -> bool {
+        self.deferred_bound_names
+            .iter()
+            .any(|deferred| deferred.bound_name_idx == idx)
     }
 
     /// Process all deferred BoundName bindings after AST traversal.

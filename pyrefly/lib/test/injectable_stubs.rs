@@ -393,3 +393,148 @@ assert_type(bpy.ops.my_blender_addon.build(), bpy.ops.my_blender_addon.OperatorP
         line!(),
     )
 }
+
+#[test]
+fn test_injectable_stub_merges_addon_data_module_without_bound_name_collision() -> anyhow::Result<()>
+{
+    let mut env = TestEnv::new();
+    env.add_with_path("BlenderExampleAddon1", "BlenderExampleAddon1/__init__.py", "");
+    env.add_with_path(
+        "BlenderExampleAddon1.groups",
+        "BlenderExampleAddon1/groups.py",
+        r#"
+def update_lights_for_mod(_x) -> None:
+    pass
+"#,
+    );
+    env.add_with_path(
+        "bpy",
+        "bpy/__init__.pyi",
+        r#"
+class types:
+    class Context: ...
+    class Light:
+        color: object
+    class PropertyGroup: ...
+
+class props:
+    @staticmethod
+    def StringProperty(**kwargs): ...
+    @staticmethod
+    def FloatProperty(**kwargs): ...
+"#,
+    );
+    env.add_with_path(
+        "mathutils",
+        "mathutils/__init__.pyi",
+        r#"
+class Color: ...
+"#,
+    );
+    env.add_with_path(
+        "BlenderExampleAddon1.data",
+        "BlenderExampleAddon1/data.py",
+        r#"
+import bpy
+import mathutils
+
+
+def _update_lights_for_mod(self: 'MyPropertyGroup2', context: bpy.types.Context) -> None:
+    from . import groups
+
+    groups.update_lights_for_mod(self)
+
+
+def get_color_callback(self: bpy.types.Light) -> object:
+    return self.color
+
+
+class MyPropertyGroup1(bpy.types.PropertyGroup):
+    object_name: bpy.props.StringProperty()
+    mod_name: bpy.props.StringProperty()
+    value_float: bpy.props.FloatProperty(unit='POWER', precision=5)
+
+
+class MyPropertyGroup2(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(update=_update_lights_for_mod)
+    type: bpy.props.StringProperty(update=_update_lights_for_mod)
+    factor: bpy.props.FloatProperty(update=_update_lights_for_mod)
+
+    def init(self, mod_type: str):
+        self.type = mod_type
+        self.name = mod_type
+"#,
+    );
+
+    let temp = tempdir()?;
+    let root = temp.path();
+    fs::create_dir_all(root.join(".injectable_stubs/BlenderExampleAddon1"))?;
+    fs::write(
+        root.join(".injectable_stubs/BlenderExampleAddon1/data.pyi"),
+        r#"
+import bpy
+
+class MyPropertyGroup1(bpy.types.PropertyGroup):
+    object_name: str
+    mod_name: str
+    value_float: float
+    value_float_preview: float
+
+class MyPropertyGroup2(bpy.types.PropertyGroup):
+    name: str
+    type: str
+    factor: float
+"#,
+    )?;
+
+    testcase_for_macro(
+        env.with_config_source_root(root.to_path_buf()),
+        r#"
+from typing import assert_type
+from BlenderExampleAddon1.data import MyPropertyGroup1, MyPropertyGroup2
+
+assert_type(MyPropertyGroup1.object_name, str)
+assert_type(MyPropertyGroup1.value_float_preview, float)
+assert_type(MyPropertyGroup2.name, str)
+"#,
+        file!(),
+        line!(),
+    )
+}
+
+#[test]
+fn test_injectable_stub_does_not_panic_on_bound_name_range_collision() -> anyhow::Result<()> {
+    let mut env = TestEnv::new();
+    env.add_with_path(
+        "foo",
+        "foo.py",
+        r#"
+T = int
+yyyyy = T
+
+class C:
+    pass
+"#,
+    );
+
+    let temp = tempdir()?;
+    let root = temp.path();
+    fs::create_dir_all(root.join(".injectable_stubs"))?;
+    fs::write(
+        root.join(".injectable_stubs/foo.pyi"),
+        r#"
+class C:
+    x: T
+"#,
+    )?;
+
+    testcase_for_macro(
+        env.with_config_source_root(root.to_path_buf()),
+        r#"
+import foo
+foo.C.x
+"#,
+        file!(),
+        line!(),
+    )
+}

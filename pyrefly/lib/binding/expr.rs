@@ -320,6 +320,9 @@ impl<'a> BindingsBuilder<'a> {
         tparams_lookup: Option<(&mut LegacyTParamCollector, LegacyTParamId)>,
     ) -> Idx<Key> {
         let key = Key::BoundName(ShortIdentifier::new(name));
+        if let Some(idx) = self.key_has_binding_or_deferred(&key) {
+            return idx;
+        }
         if name.is_empty() {
             // We only get empty identifiers if Ruff has done error correction,
             // so there must be a parse error.
