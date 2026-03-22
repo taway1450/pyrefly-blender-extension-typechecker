@@ -152,3 +152,106 @@ foo.added()  # E: No attribute `added` in module `foo`
         line!(),
     )
 }
+
+#[test]
+fn test_injectable_stub_merges_multifile_project_dependency() -> anyhow::Result<()> {
+    let mut env = TestEnv::new();
+    env.add_with_path(
+        "core.models",
+        "core/models.py",
+        r#"
+class User:
+    def id(self) -> int:
+        return 1
+"#,
+    );
+    env.add_with_path(
+        "core.service",
+        "core/service.py",
+        r#"
+from core.models import User
+
+def fetch() -> str:
+    return User().id()
+"#,
+    );
+
+    let temp = tempdir()?;
+    let root = temp.path();
+    fs::create_dir_all(root.join(".injectable_stubs/core"))?;
+    fs::write(
+        root.join(".injectable_stubs/core/models.pyi"),
+        r#"
+class User:
+    def id(self) -> str: ...
+    def name(self) -> str: ...
+"#,
+    )?;
+
+    testcase_for_macro(
+        env.with_config_source_root(root.to_path_buf()),
+        r#"
+from typing import assert_type
+from core.models import User
+from core.service import fetch
+
+assert_type(User().id(), str)
+assert_type(User().name(), str)
+assert_type(fetch(), str)
+"#,
+        file!(),
+        line!(),
+    )
+}
+
+#[test]
+fn test_injectable_stub_merges_imported_library_in_multifile_project() -> anyhow::Result<()> {
+    let mut env = TestEnv::new();
+    env.add_with_path(
+        "thirdparty",
+        "thirdparty/__init__.py",
+        r#"
+class Client:
+    def version(self) -> int:
+        return 1
+"#,
+    );
+    env.add_with_path(
+        "app.client",
+        "app/client.py",
+        r#"
+from thirdparty import Client
+
+def read_version() -> str:
+    return Client().version()
+"#,
+    );
+
+    let temp = tempdir()?;
+    let root = temp.path();
+    fs::create_dir_all(root.join(".injectable_stubs/thirdparty"))?;
+    fs::write(
+        root.join(".injectable_stubs/thirdparty/__init__.pyi"),
+        r#"
+class Client:
+    def version(self) -> str: ...
+
+def ping() -> bytes: ...
+"#,
+    )?;
+
+    testcase_for_macro(
+        env.with_config_source_root(root.to_path_buf()),
+        r#"
+from typing import assert_type
+from app.client import read_version
+from thirdparty import Client, ping
+
+assert_type(Client().version(), str)
+assert_type(read_version(), str)
+assert_type(ping(), bytes)
+"#,
+        file!(),
+        line!(),
+    )
+}
